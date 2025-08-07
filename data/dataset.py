@@ -3,8 +3,16 @@ Dataset personalizzato per training Star Removal
 Include data augmentation avanzata per prevenire overfitting
 """
 
-import os
-import cv2
+i            # Augmentazioni fotometriche conservative
+            A.OneOf([
+                A.RandomBrightnessContrast(
+                    brightness_limit=0.1, contrast_limit=0.1, p=0.5
+                ),
+                A.HueSaturationValue(
+                    hue_shift_limit=5, sat_shift_limit=10, val_shift_limit=10, p=0.4
+                ),
+                A.RandomGamma(gamma_limit=(1.0, 1.2), p=0.4),  # Fixed: >= 1.0
+            ], p=0.6),import cv2
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
