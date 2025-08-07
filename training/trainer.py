@@ -510,7 +510,7 @@ def create_trainer(input_dir: str,
         batch_size=batch_size,
         image_size=image_size,
         use_tiles=True,  # Usa tiles per aumentare dataset
-        augmentation_factor=32  # Moltiplica dataset 32x per simulare dataset locale
+        augmentation_factor=8  # Ridotto a 8x per velocità simile al locale
     )
     
     # Crea trainer

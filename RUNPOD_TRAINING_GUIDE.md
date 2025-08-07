@@ -167,7 +167,14 @@ nvidia-smi
 sudo pkill -f jupyter  # Chiudi processi non necessari
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-# Configurazione consigliata H200 (25 minuti)
+# Configurazione consigliata H200 (20 minuti) - VELOCE
+python main.py train \
+    --epochs 50 \
+    --batch-size 32 \
+    --image-size 768 768 \
+    --experiment-name "h200_fast"
+
+# Configurazione bilanciata H200 (25 minuti)
 python main.py train \
     --epochs 100 \
     --batch-size 24 \
