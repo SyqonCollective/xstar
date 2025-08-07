@@ -313,28 +313,47 @@ def create_dataloaders(input_dir: str,
     val_indices = val_dataset.indices if hasattr(val_dataset, 'indices') else list(range(val_size))
     val_subset = torch.utils.data.Subset(val_dataset_clean, val_indices[:val_size//augmentation_factor])
     
-    # Crea DataLoaders
+    # 🚨 H200 OPTIMIZED DATALOADERS - FIX 0% GPU USAGE
+    # Calcola num_workers ottimale per H200
+    optimal_workers = min(16, max(4, torch.get_num_threads() // 2))
+    if torch.cuda.is_available():
+        # H200 ha bandwidth altissima, serve più workers
+        optimal_workers = min(32, max(8, torch.get_num_threads()))
+    
+    print(f"🔧 H200 DataLoader Optimization:")
+    print(f"  - Optimal workers: {optimal_workers} (requested: {num_workers})")
+    print(f"  - Using persistent workers: True")
+    print(f"  - Prefetch factor: 4 (H200 optimized)")
+    
+    # Crea DataLoaders OTTIMIZZATI per H200
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=num_workers,
+        num_workers=optimal_workers,  # 🔥 OTTIMIZZATO per H200
         pin_memory=True,
-        drop_last=True
+        drop_last=True,
+        persistent_workers=True,  # 🚨 CRITICO: Evita ricreazione workers
+        prefetch_factor=4,  # 🔥 H200 ha memoria/bandwidth alta
+        pin_memory_device="cuda" if torch.cuda.is_available() else ""  # Pin direttamente su GPU
     )
-    
+
     val_loader = DataLoader(
         val_subset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=num_workers,
-        pin_memory=True
+        num_workers=max(2, optimal_workers // 2),  # Meno workers per validation
+        pin_memory=True,
+        persistent_workers=True,  # 🚨 CRITICO: Evita ricreazione workers
+        prefetch_factor=2,
+        pin_memory_device="cuda" if torch.cuda.is_available() else ""  # Pin direttamente su GPU
     )
     
     print(f"📊 DataLoaders creati:")
     print(f"  - Training samples: {len(train_dataset)}")
     print(f"  - Validation samples: {len(val_subset)}")
     print(f"  - Batch size: {batch_size}")
+    print(f"  - Workers: train={optimal_workers}, val={max(2, optimal_workers // 2)}")
     
     return train_loader, val_loader
 

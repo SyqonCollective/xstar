@@ -189,11 +189,22 @@ class StarRemovalTrainer:
         
         # Setup loss, optimizer, scheduler
         self.criterion = StarNetLoss()
+        
+        # 🔥 H200 OPTIMIZED OPTIMIZER
+        lr = 1e-3
+        if device == 'cuda' and "H200" in torch.cuda.get_device_name(0).upper():
+            # H200 può gestire batch più grandi e learning rate più alti
+            lr = 2e-3  # Learning rate più alto per H200
+            print(f"  🚀 H200 optimizer: lr={lr}")
+        
         self.optimizer = optim.AdamW(
             self.model.parameters(),
-            lr=1e-3,
+            lr=lr,
             weight_decay=1e-4,
-            betas=(0.9, 0.999)
+            betas=(0.9, 0.999),
+            eps=1e-8,
+            amsgrad=False,  # Disabilita per velocità
+            foreach=True  # 🔥 CRITICAL: Fused optimizer per GPU
         )
         
         # Scheduler con warm restarts
@@ -274,8 +285,21 @@ class StarRemovalTrainer:
             # Salta batch già processati se riprende da checkpoint
             if batch_idx < self.start_batch:
                 continue
-            inputs = batch['input'].to(self.device)
-            targets = batch['starless'].to(self.device)
+                
+            # 🚨 H200 AGGRESSIVE GPU TRANSFER - FIX 0% USAGE
+            inputs = batch['input'].to(self.device, non_blocking=True)  # ASYNC transfer
+            targets = batch['starless'].to(self.device, non_blocking=True)  # ASYNC transfer
+            
+            # 🔥 VERIFICA CRITICA: DATI EFFETTIVAMENTE SU GPU
+            if batch_idx == 0:  # Solo primo batch per non spammare
+                print(f"🔍 GPU Transfer Check:")
+                print(f"  Input device: {inputs.device}")
+                print(f"  Target device: {targets.device}")
+                print(f"  GPU Memory used: {torch.cuda.memory_allocated()/1e9:.2f}GB")
+            
+            # ⚡ FORZA SYNC GPU prima del forward (fix timing issues H200)
+            if self.device == 'cuda':
+                torch.cuda.synchronize()
             
             # Forward pass
             self.optimizer.zero_grad()
@@ -536,6 +560,18 @@ def create_trainer(input_dir: str,
         device = 'cuda'
         print(f"🔧 CUDA disponibile - FORZO device='cuda'")
         print(f"  GPU: {torch.cuda.get_device_name(0)}")
+        
+        # 🔥 H200 SPECIFIC OPTIMIZATIONS
+        if "H200" in torch.cuda.get_device_name(0).upper():
+            print(f"  🚀 H200 DETECTED - Applying specific optimizations")
+            # H200 ha 141GB memoria - possiamo essere più aggressivi
+            torch.cuda.set_per_process_memory_fraction(0.95)  # Usa 95% memoria
+        
+        # 🚨 AGGRESSIVE CUDA SETTINGS per H200
+        torch.backends.cudnn.benchmark = True  # Ottimizza convoluzioni
+        torch.backends.cuda.matmul.allow_tf32 = True  # TF32 per speed
+        torch.backends.cudnn.allow_tf32 = True
+        
     else:
         device = 'cpu'
         print(f"⚠️  CUDA non disponibile - uso CPU")
@@ -548,8 +584,9 @@ def create_trainer(input_dir: str,
         test_tensor = torch.randn(10, 10).cuda()
         print(f"  GPU Test allocation: {test_tensor.device} ✅")
         del test_tensor  # Libera memoria
+        torch.cuda.empty_cache()  # Pulisci cache
     
-    # Crea modello
+    # Crea modello E FORZA SU GPU IMMEDIATAMENTE
     model = StarNetUNet(n_channels=3, n_classes=3, dropout_rate=0.1)
     
     # Crea dataloaders
