@@ -160,6 +160,38 @@ tar -czf runpod_training_results.tar.gz outputs/
 
 ## ⚡ Configurazioni Ottimizzate per GPU
 
+### 🔥 H200 SXM (139GB VRAM) - OTTIMIZZATO
+```bash
+# ⚠️ IMPORTANTE: Prima libera memoria GPU
+nvidia-smi
+sudo pkill -f jupyter  # Chiudi processi non necessari
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+# Configurazione consigliata H200 (25 minuti)
+python main.py train \
+    --epochs 100 \
+    --batch-size 24 \
+    --image-size 896 896 \
+    --experiment-name "h200_optimized"
+
+# Se ancora OOM, usa configurazione sicura H200
+python main.py train \
+    --epochs 80 \
+    --batch-size 16 \
+    --image-size 768 768 \
+    --experiment-name "h200_safe"
+
+# Debug memoria H200
+python -c "
+import torch
+print(f'GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f}GB')
+print(f'Allocated: {torch.cuda.memory_allocated() / 1e9:.1f}GB')
+print(f'Reserved: {torch.cuda.memory_reserved() / 1e9:.1f}GB')
+torch.cuda.empty_cache()
+print('Cache cleared!')
+"
+```
+
 ### RTX 3080/4070 (12GB VRAM)
 ```bash
 python main.py train \
@@ -209,7 +241,30 @@ outputs/EXPERIMENT_NAME/
 
 ## 🔧 Troubleshooting
 
-### CUDA Out of Memory
+### 🚨 CUDA Out of Memory su H200/RunPod
+```bash
+# 1. Verifica memoria disponibile
+nvidia-smi
+
+# 2. Termina processi Jupyter/Notebook
+sudo pkill -f jupyter
+sudo pkill -f tensorboard
+
+# 3. Libera cache PyTorch
+python -c "import torch; torch.cuda.empty_cache(); print('Cache cleared!')"
+
+# 4. Usa configurazione memoria ottimizzata
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export CUDA_LAUNCH_BLOCKING=1
+
+# 5. Riduci parametri gradualmente:
+# Primo tentativo: --batch-size 24 --image-size 896 896
+# Secondo tentativo: --batch-size 16 --image-size 768 768  
+# Terzo tentativo: --batch-size 12 --image-size 640 640
+# Ultimo tentativo: --batch-size 8 --image-size 512 512
+```
+
+### CUDA Out of Memory (Generale)
 ```bash
 # Riduci batch size
 --batch-size 8
@@ -242,7 +297,7 @@ nvidia-smi
 ## 🎉 One-Liner Completo per RunPod
 
 ```bash
-# Setup e avvio completo in un comando
+# Setup completo H200 con gestione memoria ottimizzata
 sudo apt-get update && sudo apt-get install -y git-lfs && \
 git lfs install && \
 git clone https://github.com/SyqonCollective/xstar.git && \
@@ -250,8 +305,25 @@ cd xstar && \
 python -m pip install --upgrade pip && \
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118 && \
 pip install -r requirements.txt && \
+sudo pkill -f jupyter && \
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True && \
 python test_dataset_paths.py && \
-python main.py train --epochs 200 --batch-size 24 --image-size 768 768 --experiment-name "runpod_auto_training"
+python main.py train --epochs 100 --batch-size 24 --image-size 896 896 --experiment-name "h200_auto_optimized"
+```
+
+## 🚨 Comandi Rapidi H200 Troubleshooting
+
+```bash
+# Se OOM, usa questi comandi in sequenza su RunPod:
+
+# 1. Libera memoria
+sudo pkill -f jupyter && python -c "import torch; torch.cuda.empty_cache()"
+
+# 2. Training sicuro H200  
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True && python main.py train --epochs 80 --batch-size 16 --image-size 768 768 --experiment-name "h200_safe"
+
+# 3. Se ancora problemi, modalità ultra-safe
+python main.py train --epochs 60 --batch-size 12 --image-size 640 640 --experiment-name "h200_ultra_safe"
 ```
 
 ## 💡 Pro Tips per RunPod
