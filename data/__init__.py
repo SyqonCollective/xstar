@@ -1,0 +1,1 @@
+"""Data handling module for Star Removal Project"""

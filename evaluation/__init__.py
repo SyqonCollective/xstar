@@ -1,0 +1,1 @@
+"""Evaluation module for Star Removal Project"""

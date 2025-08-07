@@ -1,0 +1,37 @@
+# Docker Compose per Star Removal Project
+version: '3.8'
+
+services:
+  star-removal:
+    build: .
+    container_name: star-removal-training
+    volumes:
+      - ./Starlossno-1:/app/Starlossno-1:ro
+      - ./outputs:/app/outputs
+      - ./logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CUDA_VISIBLE_DEVICES=0
+    command: python main.py train --epochs 50 --batch-size 4
+    
+  tensorboard:
+    build: .
+    container_name: star-removal-tensorboard
+    ports:
+      - "6006:6006"
+    volumes:
+      - ./outputs:/app/outputs:ro
+    command: tensorboard --logdir=outputs --host=0.0.0.0 --port=6006
+    depends_on:
+      - star-removal
+
+  jupyter:
+    build: .
+    container_name: star-removal-jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./:/app
+    command: jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root
+    environment:
+      - JUPYTER_ENABLE_LAB=yes

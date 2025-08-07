@@ -1,0 +1,117 @@
+name: Star Removal Training
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      epochs:
+        description: 'Number of training epochs'
+        required: false
+        default: '50'
+        type: string
+      batch_size:
+        description: 'Batch size for training'
+        required: false
+        default: '4'
+        type: string
+      experiment_name:
+        description: 'Name for the experiment'
+        required: false
+        default: 'github_training'
+        type: string
+
+jobs:
+  training:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        lfs: true
+    
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+        pip install -r requirements.txt
+    
+    - name: Check dataset
+      run: |
+        echo "Checking dataset structure..."
+        find Starlossno-1/ -name "*.jpg" | wc -l
+        ls -la Starlossno-1/
+    
+    - name: Run quick analysis
+      run: |
+        python data_analysis.py
+    
+    - name: Start training (CPU)
+      run: |
+        python main.py train \
+          --epochs ${{ github.event.inputs.epochs || '20' }} \
+          --batch-size ${{ github.event.inputs.batch_size || '2' }} \
+          --experiment-name ${{ github.event.inputs.experiment_name || 'github_cpu_training' }} \
+          --device cpu \
+          --image-size 256 256
+    
+    - name: Upload training results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: training-results
+        path: |
+          outputs/
+          *.log
+        retention-days: 30
+    
+    - name: Upload tensorboard logs
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: tensorboard-logs
+        path: outputs/**/tensorboard/
+        retention-days: 7
+
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+        pip install -r requirements.txt
+    
+    - name: Run tests
+      run: |
+        python -m pytest test_*.py -v || echo "No pytest found, running manual tests"
+        python test_gpu.py
+    
+    - name: Lint with flake8
+      run: |
+        pip install flake8
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics

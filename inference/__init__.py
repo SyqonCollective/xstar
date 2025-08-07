@@ -1,0 +1,1 @@
+"""Inference module for Star Removal Project"""

@@ -1,0 +1,1 @@
+"""Training module for Star Removal Project"""
