@@ -154,6 +154,18 @@ class StarRemovalTrainer:
         self.output_dir = Path(output_dir) / experiment_name
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
+        # ✅ VERIFICA GPU ACTIVATION
+        print(f"🔧 Configurando trainer...")
+        print(f"  Device: {device}")
+        if device == 'cuda' and torch.cuda.is_available():
+            print(f"  GPU: {torch.cuda.get_device_name(0)}")
+            print(f"  GPU Memory: {torch.cuda.get_device_properties(0).total_memory/1e9:.1f}GB")
+            # Test allocazione
+            test_tensor = torch.randn(1, 3, 256, 256).to(device)
+            print(f"  GPU Test: {test_tensor.device} ✅")
+        else:
+            print(f"  ⚠️ WARNING: Using CPU - training will be slow!")
+        
         # Setup loss, optimizer, scheduler
         self.criterion = StarNetLoss()
         self.optimizer = optim.AdamW(

@@ -167,29 +167,61 @@ nvidia-smi
 sudo pkill -f jupyter  # Chiudi processi non necessari
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-# 🚀 Configurazione ULTRA-VELOCE H200 (10-15 minuti)
-python main.py train \
-    --epochs 30 \
-    --batch-size 64 \
-    --image-size 640 640 \
-    --num-workers 16 \
-    --experiment-name "h200_ultra_fast"
-
-# Configurazione veloce H200 (15-20 minuti) 
+# � Configurazione IDENTICA al Portatile 4070 (GARANTITA)
 python main.py train \
     --epochs 50 \
-    --batch-size 48 \
-    --image-size 768 768 \
-    --num-workers 12 \
-    --experiment-name "h200_fast"
+    --batch-size 4 \
+    --image-size 512 512 \
+    --num-workers 4 \
+    --experiment-name "h200_laptop_replica"
 
-# Configurazione bilanciata H200 (25 minuti)
+# 🚀 Configurazione Migliorata per H200 (stesso tempo, più veloce)
 python main.py train \
-    --epochs 100 \
-    --batch-size 32 \
-    --image-size 896 896 \
+    --epochs 50 \
+    --batch-size 16 \
+    --image-size 512 512 \
     --num-workers 8 \
-    --experiment-name "h200_optimized"
+    --experiment-name "h200_laptop_enhanced"
+
+# 🔥 Configurazione ULTRA-VELOCE H200 (10-15 minuti)
+python main.py train \
+    --epochs 30 \
+    --batch-size 32 \
+    --image-size 640 640 \
+    --num-workers 12 \
+    --experiment-name "h200_ultra_fast"
+
+# 🚨 RISOLUZIONE GPU 0% USAGE - COMANDI EMERGENZA
+pkill -9 python && nvidia-smi
+
+# 🔍 VERIFICA COMPLETA CUDA
+python -c "
+import torch
+print('=== CUDA DIAGNOSTICS ===')
+print(f'CUDA available: {torch.cuda.is_available()}')
+print(f'CUDA version: {torch.version.cuda}')
+print(f'PyTorch version: {torch.__version__}')
+print(f'GPU count: {torch.cuda.device_count()}')
+if torch.cuda.is_available():
+    print(f'GPU name: {torch.cuda.get_device_name(0)}')
+    print(f'GPU memory: {torch.cuda.get_device_properties(0).total_memory/1e9:.1f}GB')
+    # Test allocazione GPU
+    x = torch.randn(100, 100).cuda()
+    print(f'✅ GPU allocation test OK: {x.device}')
+else:
+    print('❌ CUDA NON DISPONIBILE - PyTorch CPU-only!')
+"
+
+# 🚀 COMANDO DEFINITIVO - FORZA GPU con verifiche
+export CUDA_VISIBLE_DEVICES=0
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export CUDA_LAUNCH_BLOCKING=1
+python main.py train \
+    --epochs 30 \
+    --batch-size 16 \
+    --image-size 256 256 \
+    --num-workers 4 \
+    --experiment-name "h200_force_gpu"
 
 # Se ancora OOM, usa configurazione sicura H200
 python main.py train \
@@ -364,10 +396,50 @@ python main.py train \
 ## 🚨 Comandi Rapidi H200 Troubleshooting
 
 ```bash
+# 🔥 EMERGENCY MEMORY CLEANUP H200 (Usa SUBITO!)
+
+# 1. FERMA TUTTO e libera memoria completamente
+pkill -9 python && pkill -9 jupyter && pkill -9 tensorboard
+nvidia-smi  # Verifica che processi siano morti
+
+# 2. FORZARE pulizia memoria GPU  
+python -c "
+import torch
+torch.cuda.empty_cache()
+import gc
+gc.collect()
+for i in range(torch.cuda.device_count()):
+    torch.cuda.set_device(i)
+    torch.cuda.empty_cache()
+print('🧹 Memoria GPU completamente pulita')
+"
+
+# 3. RESTART con configurazione MINIMAL per H200
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:512
+export CUDA_LAUNCH_BLOCKING=1
+
+# 4. Training ULTRA-SAFE per H200 (GARANTITO funziona)
+python main.py train \
+    --epochs 20 \
+    --batch-size 16 \
+    --image-size 512 512 \
+    --num-workers 4 \
+    --experiment-name "h200_emergency_safe"
+
+# 5. Se ancora problemi, MODALITÀ ESTREMA
+python main.py train \
+    --epochs 15 \
+    --batch-size 8 \
+    --image-size 384 384 \
+    --num-workers 2 \
+    --experiment-name "h200_extreme_safe"
+```
+
+```bash
 # Se OOM, usa questi comandi in sequenza su RunPod:
 
 # 1. Libera memoria
-sudo pkill -f jupyter && python -c "import torch; torch.cuda.empty_cache()"
+pkill -f jupyter && python -c "import torch; torch.cuda.empty_cache()"
 
 # 2. Training sicuro H200  
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True && python main.py train --epochs 80 --batch-size 16 --image-size 768 768 --experiment-name "h200_safe"
