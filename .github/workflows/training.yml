@@ -1,83 +1,40 @@
-name: Star Removal Training
+name: Star Removal Training (COMPLETELY DISABLED)
 
-on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:
-    inputs:
-      epochs:
-        description: 'Number of training epochs'
-        required: false
-        default: '50'
-        type: string
-      batch_size:
-        description: 'Batch size for training'
-        required: false
-        default: '4'
-        type: string
-      experiment_name:
-        description: 'Name for the experiment'
-        required: false
-        default: 'github_training'
-        type: string
+# 🚫 WORKFLOW COMPLETAMENTE DISABILITATO
+# Non utilizzare GitHub Actions per training - usa solo RunPod
+# Questo file è mantenuto solo per riferimento
+on: []  # Nessun trigger - workflow completamente disabilitato
 
 jobs:
-  training:
+  # Nessun job - workflow disabilitato
+  disabled:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Workflow Disabled
+        run: |
+          echo "⚠️ Questo workflow è completamente disabilitato"
+          echo "🚀 Usa RunPod per il training con GPU reali"
+          echo "📖 Leggi RUNPOD_TRAINING_GUIDE.md per istruzioni"
+          exit 0
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
-      with:
-        lfs: true
-    
-    - name: Set up Python 3.9
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-    
-    - name: Cache pip dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
-    
-    - name: Install dependencies
+    - name: ⚠️ TRAINING DISABILITATO SU GITHUB ACTIONS
       run: |
-        python -m pip install --upgrade pip
-        pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-        pip install -r requirements.txt
-    
-    - name: Check dataset
-      run: |
-        echo "Checking dataset structure..."
-        find Starlossno-1/ -name "*.jpg" | wc -l
-        ls -la Starlossno-1/
-    
-    - name: Run quick analysis
-      run: |
-        python data_analysis.py
-    
-    - name: Start training (CPU)
-      run: |
-        python main.py train \
-          --epochs ${{ github.event.inputs.epochs || '20' }} \
-          --batch-size ${{ github.event.inputs.batch_size || '2' }} \
-          --experiment-name ${{ github.event.inputs.experiment_name || 'github_cpu_training' }} \
-          --device cpu \
-          --image-size 256 256
-    
-    - name: Upload training results
-      uses: actions/upload-artifact@v3
-      if: always()
-      with:
-        name: training-results
-        path: |
-          outputs/
-          *.log
+        echo "🚫 TRAINING DISABILITATO!"
+        echo "GitHub Actions non ha GPU disponibili per il training."
+        echo "Per trainare il modello, usa RunPod con GPU H100/H200:"
+        echo ""
+        echo "1. Vai su https://runpod.io"
+        echo "2. Crea un pod con GPU (H100/H200/RTX4090)"
+        echo "3. Segui la guida in RUNPOD_TRAINING_GUIDE.md"
+        echo ""
+        echo "Comando rapido per RunPod:"
+        echo "git clone https://github.com/SyqonCollective/xstar.git && cd xstar && python main.py train --epochs 100 --batch-size 16 --image-size 768 768"
+        exit 0
+        
+  # ⚠️ STEPS RIMOSSI - Usa RunPod per training reale con GPU
+  # Tutti gli altri step sono stati disabilitati perché GitHub Actions non ha GPU
         retention-days: 30
     
     - name: Upload tensorboard logs
