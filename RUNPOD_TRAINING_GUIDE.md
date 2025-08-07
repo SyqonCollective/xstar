@@ -314,7 +314,7 @@ nvidia-smi
 ## 🎉 One-Liner Completo per RunPod
 
 ```bash
-# Setup completo H200 con gestione memoria ottimizzata
+# 🚀 Setup completo H200 ULTRA-OTTIMIZZATO (One-Liner)
 sudo apt-get update && sudo apt-get install -y git-lfs && \
 git lfs install && \
 git clone https://github.com/SyqonCollective/xstar.git && \
@@ -325,7 +325,40 @@ pip install -r requirements.txt && \
 sudo pkill -f jupyter && \
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True && \
 python test_dataset_paths.py && \
-python main.py train --epochs 100 --batch-size 24 --image-size 896 896 --experiment-name "h200_auto_optimized"
+python main.py train --epochs 30 --batch-size 64 --image-size 640 640 --num-workers 16 --experiment-name "h200_ultra_fast"
+```
+
+## 🔥 Comandi Step-by-Step (Se preferisci controllo manuale)
+
+```bash
+# 1. Setup iniziale
+sudo apt-get update && sudo apt-get install -y git-lfs
+git lfs install
+
+# 2. Clona repository
+git clone https://github.com/SyqonCollective/xstar.git
+cd xstar
+
+# 3. Setup Python
+python -m pip install --upgrade pip
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+pip install -r requirements.txt
+
+# 4. Libera memoria e ottimizza
+sudo pkill -f jupyter
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+# 5. Test setup
+python test_dataset_paths.py
+python test_gpu.py
+
+# 6. Training ULTRA-VELOCE (10-15 minuti)
+python main.py train \
+    --epochs 30 \
+    --batch-size 64 \
+    --image-size 640 640 \
+    --num-workers 16 \
+    --experiment-name "h200_ultra_fast"
 ```
 
 ## 🚨 Comandi Rapidi H200 Troubleshooting
