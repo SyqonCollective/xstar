@@ -527,8 +527,8 @@ def create_trainer(input_dir: str,
 
 if __name__ == "__main__":
     # Test trainer
-    input_dir = "../../Starlossno-1/starmodel dataset/input"
-    starless_dir = "../../Starlossno-1/starmodel dataset/starless"
+    input_dir = "../Starlossno-1/starmodel dataset/input"
+    starless_dir = "../Starlossno-1/starmodel dataset/starless"
     
     trainer = create_trainer(
         input_dir=input_dir,

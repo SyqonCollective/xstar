@@ -47,8 +47,8 @@ def quick_training():
         from main import train_model
         
         model_path = train_model(
-            input_dir="../Starlossno-1/starmodel dataset/input",
-            starless_dir="../Starlossno-1/starmodel dataset/starless",
+            input_dir="Starlossno-1/starmodel dataset/input",
+            starless_dir="Starlossno-1/starmodel dataset/starless",
             epochs=50,  # Ridotto per test rapido
             batch_size=4,  # Conservativo per memoria
             image_size=(512, 512),
@@ -71,8 +71,8 @@ def quick_evaluation(model_path):
         
         results = evaluate_model(
             model_path=model_path,
-            input_dir="../Starlossno-1/starmodel dataset/input",
-            starless_dir="../Starlossno-1/starmodel dataset/starless",
+            input_dir="Starlossno-1/starmodel dataset/input",
+            starless_dir="Starlossno-1/starmodel dataset/starless",
             output_dir="quickstart_evaluation"
         )
         
@@ -101,7 +101,7 @@ def quick_processing(model_path):
         from main import process_images
         
         # Processa prime 5 immagini per test
-        input_dir = "../Starlossno-1/starmodel dataset/input"
+        input_dir = "Starlossno-1/starmodel dataset/input"
         output_dir = "quickstart_results"
         
         process_images(

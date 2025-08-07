@@ -196,9 +196,9 @@ class DatasetAnalyzer:
         print(f"\n💾 Analisi salvata in: {output_path}")
 
 def main():
-    # Path relativi dal Desktop
-    input_dir = "../Starlossno-1/starmodel dataset/input"
-    starless_dir = "../Starlossno-1/starmodel dataset/starless"
+    # Path del dataset nel progetto
+    input_dir = "Starlossno-1/starmodel dataset/input"
+    starless_dir = "Starlossno-1/starmodel dataset/starless"
     
     analyzer = DatasetAnalyzer(input_dir, starless_dir)
     results = analyzer.analyze_images()

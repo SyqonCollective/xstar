@@ -340,9 +340,9 @@ def create_dataloaders(input_dir: str,
 
 def test_dataset():
     """Test del dataset"""
-    # Percorsi relativi
-    input_dir = "../../Starlossno-1/starmodel dataset/input"
-    starless_dir = "../../Starlossno-1/starmodel dataset/starless"
+    # Percorsi del dataset nel progetto
+    input_dir = "../Starlossno-1/starmodel dataset/input"
+    starless_dir = "../Starlossno-1/starmodel dataset/starless"
     
     # Test dataset base
     dataset = StarRemovalDataset(

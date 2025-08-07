@@ -170,9 +170,9 @@ def main():
                        help="Comando da eseguire")
     
     # Directory del dataset
-    parser.add_argument("--input-dir", default="../Starlossno-1/starmodel dataset/input",
+    parser.add_argument("--input-dir", default="Starlossno-1/starmodel dataset/input",
                        help="Directory immagini input")
-    parser.add_argument("--starless-dir", default="../Starlossno-1/starmodel dataset/starless", 
+    parser.add_argument("--starless-dir", default="Starlossno-1/starmodel dataset/starless", 
                        help="Directory immagini starless")
     
     # Parametri training
