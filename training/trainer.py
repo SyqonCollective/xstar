@@ -154,17 +154,38 @@ class StarRemovalTrainer:
         self.output_dir = Path(output_dir) / experiment_name
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
-        # ✅ VERIFICA GPU ACTIVATION
+        # ✅ VERIFICA GPU ACTIVATION CON DIAGNOSTICS DETTAGLIATI
         print(f"🔧 Configurando trainer...")
-        print(f"  Device: {device}")
+        print(f"  Device richiesto: {device}")
+        print(f"  CUDA disponibile: {torch.cuda.is_available()}")
+        
         if device == 'cuda' and torch.cuda.is_available():
             print(f"  GPU: {torch.cuda.get_device_name(0)}")
             print(f"  GPU Memory: {torch.cuda.get_device_properties(0).total_memory/1e9:.1f}GB")
-            # Test allocazione
-            test_tensor = torch.randn(1, 3, 256, 256).to(device)
-            print(f"  GPU Test: {test_tensor.device} ✅")
+            
+            # 🚨 VERIFICA CRITICA: MODELLO EFFETTIVAMENTE SU GPU
+            model_device = next(self.model.parameters()).device
+            print(f"  Modello su device: {model_device}")
+            
+            if model_device.type != 'cuda':
+                print(f"  🚨 ERRORE: Modello non è su CUDA! Ri-sposto...")
+                self.model = self.model.cuda()
+                model_device = next(self.model.parameters()).device
+                print(f"  Modello dopo .cuda(): {model_device}")
+            
+            # Test allocazione tensore
+            try:
+                test_tensor = torch.randn(1, 3, 256, 256).to(device)
+                test_output = self.model(test_tensor)
+                print(f"  GPU Test forward: input={test_tensor.device}, output={test_output.device} ✅")
+                del test_tensor, test_output
+                torch.cuda.empty_cache()
+            except Exception as e:
+                print(f"  ❌ ERRORE GPU Test: {e}")
+                
         else:
             print(f"  ⚠️ WARNING: Using CPU - training will be slow!")
+            print(f"  Motivo: device='{device}', cuda_available={torch.cuda.is_available()}")
         
         # Setup loss, optimizer, scheduler
         self.criterion = StarNetLoss()
@@ -510,8 +531,23 @@ def create_trainer(input_dir: str,
     if device is None:
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
+    # 🚨 FORZA CUDA SE DISPONIBILE - FIX GPU 0% USAGE
+    if torch.cuda.is_available():
+        device = 'cuda'
+        print(f"🔧 CUDA disponibile - FORZO device='cuda'")
+        print(f"  GPU: {torch.cuda.get_device_name(0)}")
+    else:
+        device = 'cpu'
+        print(f"⚠️  CUDA non disponibile - uso CPU")
+    
     print(f"🔧 Configurando trainer...")
-    print(f"  Device: {device}")
+    print(f"  Device FINALE: {device}")
+    
+    # ✅ VERIFICA ESPLICITA CUDA ACTIVATION
+    if device == 'cuda':
+        test_tensor = torch.randn(10, 10).cuda()
+        print(f"  GPU Test allocation: {test_tensor.device} ✅")
+        del test_tensor  # Libera memoria
     
     # Crea modello
     model = StarNetUNet(n_channels=3, n_classes=3, dropout_rate=0.1)
