@@ -44,11 +44,12 @@ def analyze_dataset(input_dir: str, starless_dir: str):
     print("\n✅ Analisi completata!")
     return results
 
-def train_model(input_dir: str, 
+def train_model(input_dir: str,
                starless_dir: str,
                epochs: int = 100,
                batch_size: int = 8,
                image_size: tuple = (512, 512),
+               num_workers: int = 4,
                experiment_name: str = "starnet_v1"):
     """Addestra il modello"""
     print(f"\n🚀 FASE 2: Training Modello")
@@ -60,10 +61,9 @@ def train_model(input_dir: str,
         starless_dir=starless_dir,
         batch_size=batch_size,
         image_size=image_size,
+        num_workers=num_workers,
         experiment_name=experiment_name
-    )
-    
-    # Addestra
+    )    # Addestra
     trainer.train(num_epochs=epochs, save_every=10)
     
     # Restituisci path del miglior modello
@@ -182,6 +182,8 @@ def main():
                        help="Batch size per training")
     parser.add_argument("--image-size", type=int, nargs=2, default=[512, 512],
                        help="Dimensioni immagini per training")
+    parser.add_argument("--num-workers", type=int, default=4,
+                       help="Numero di worker per DataLoader")
     parser.add_argument("--experiment-name", default="starnet_v1",
                        help="Nome esperimento")
     
@@ -212,6 +214,7 @@ def main():
                 epochs=args.epochs,
                 batch_size=args.batch_size,
                 image_size=tuple(args.image_size),
+                num_workers=args.num_workers,
                 experiment_name=args.experiment_name
             )
             print(f"\n🎯 Modello addestrato: {model_path}")

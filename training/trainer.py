@@ -491,6 +491,7 @@ def create_trainer(input_dir: str,
                   experiment_name: str = 'starnet_experiment',
                   batch_size: int = 8,
                   image_size: Tuple[int, int] = (512, 512),
+                  num_workers: int = 4,
                   device: str = None) -> StarRemovalTrainer:
     """Factory function per creare trainer"""
     
@@ -509,6 +510,7 @@ def create_trainer(input_dir: str,
         starless_dir=starless_dir,
         batch_size=batch_size,
         image_size=image_size,
+        num_workers=num_workers,
         use_tiles=True,  # Usa tiles per aumentare dataset
         augmentation_factor=8  # Ridotto a 8x per velocità simile al locale
     )
