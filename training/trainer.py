@@ -145,7 +145,13 @@ class StarRemovalTrainer:
                  val_loader,
                  device: str = 'cuda',
                  output_dir: str = 'outputs',
-                 experiment_name: str = 'starnet_experiment'):
+                 experiment_name: str = 'starnet_experiment',
+                 # 🔥 BEAST MODE PARAMETERS
+                 mixed_precision: str = 'fp32',
+                 grad_accum_steps: int = 1,
+                 learning_rate: float = 0.001,
+                 weight_decay: float = 1e-4,
+                 early_stopping_patience: int = 10):
         
         self.model = model.to(device)
         self.train_loader = train_loader
@@ -187,20 +193,32 @@ class StarRemovalTrainer:
             print(f"  ⚠️ WARNING: Using CPU - training will be slow!")
             print(f"  Motivo: device='{device}', cuda_available={torch.cuda.is_available()}")
         
+        
+        # 🔥 BEAST MODE: Salva parametri
+        self.mixed_precision = mixed_precision
+        self.grad_accum_steps = grad_accum_steps
+        self.scaler = None
+        
+        # Setup Mixed Precision Scaler
+        if mixed_precision in ['fp16', 'bf16']:
+            if mixed_precision == 'fp16':
+                self.scaler = torch.cuda.amp.GradScaler()
+                print(f"🔥 Mixed Precision: FP16 with GradScaler")
+            else:  # bf16
+                print(f"🔥 Mixed Precision: BF16 (native)")
+        else:
+            print(f"🔥 Mixed Precision: Disabled (FP32)")
+        
         # Setup loss, optimizer, scheduler
         self.criterion = StarNetLoss()
         
-        # 🔥 H200 OPTIMIZED OPTIMIZER
-        lr = 1e-3
-        if device == 'cuda' and "H200" in torch.cuda.get_device_name(0).upper():
-            # H200 può gestire batch più grandi e learning rate più alti
-            lr = 2e-3  # Learning rate più alto per H200
-            print(f"  🚀 H200 optimizer: lr={lr}")
+        # 🔥 BEAST MODE OPTIMIZER con parametri configurabili
+        print(f"� Optimizer config: lr={learning_rate}, weight_decay={weight_decay}")
         
         self.optimizer = optim.AdamW(
             self.model.parameters(),
-            lr=lr,
-            weight_decay=1e-4,
+            lr=learning_rate,
+            weight_decay=weight_decay,
             betas=(0.9, 0.999),
             eps=1e-8,
             amsgrad=False,  # Disabilita per velocità
@@ -217,7 +235,9 @@ class StarRemovalTrainer:
         
         # Tracking
         self.metrics_tracker = MetricsTracker()
-        self.early_stopping = EarlyStopping(patience=15, min_delta=0.001)
+        self.early_stopping = EarlyStopping(patience=early_stopping_patience, min_delta=0.001)
+        
+        print(f"🔥 Early Stopping: patience={early_stopping_patience}")
         
         # TensorBoard
         self.writer = SummaryWriter(self.output_dir / 'tensorboard')
@@ -274,19 +294,22 @@ class StarRemovalTrainer:
         return False
     
     def train_epoch(self) -> Dict[str, float]:
-        """Training per una epoch"""
+        """Training per una epoch con BEAST MODE optimizations"""
         self.model.train()
         total_loss = 0
         loss_components = {'l1': 0, 'l2': 0, 'perceptual': 0}
         
         pbar = tqdm(self.train_loader, desc=f'Epoch {self.current_epoch+1} [Train]')
         
+        # 🔥 BEAST MODE: Reset gradients per accumulation
+        self.optimizer.zero_grad()
+        
         for batch_idx, batch in enumerate(pbar):
             # Salta batch già processati se riprende da checkpoint
             if batch_idx < self.start_batch:
                 continue
                 
-            # 🚨 H200 AGGRESSIVE GPU TRANSFER - FIX 0% USAGE
+            # 🚨 AGGRESSIVE GPU TRANSFER - FIX 0% USAGE
             inputs = batch['input'].to(self.device, non_blocking=True)  # ASYNC transfer
             targets = batch['starless'].to(self.device, non_blocking=True)  # ASYNC transfer
             
@@ -296,25 +319,58 @@ class StarRemovalTrainer:
                 print(f"  Input device: {inputs.device}")
                 print(f"  Target device: {targets.device}")
                 print(f"  GPU Memory used: {torch.cuda.memory_allocated()/1e9:.2f}GB")
+                if self.mixed_precision != 'fp32':
+                    print(f"  Mixed Precision: {self.mixed_precision}")
+                if self.grad_accum_steps > 1:
+                    print(f"  Gradient Accumulation: {self.grad_accum_steps} steps")
             
             # ⚡ FORZA SYNC GPU prima del forward (fix timing issues H200)
             if self.device == 'cuda':
                 torch.cuda.synchronize()
             
-            # Forward pass
-            self.optimizer.zero_grad()
-            outputs = self.model(inputs)
+            # 🔥 BEAST MODE: Mixed Precision Forward Pass
+            if self.mixed_precision == 'fp16' and self.scaler is not None:
+                # FP16 with autocast and GradScaler
+                with torch.cuda.amp.autocast(dtype=torch.float16):
+                    outputs = self.model(inputs)
+                    loss, loss_dict = self.criterion(outputs, targets)
+                    loss = loss / self.grad_accum_steps  # Scale per accumulation
+                
+                # Scaled backward pass
+                self.scaler.scale(loss).backward()
+                
+            elif self.mixed_precision == 'bf16':
+                # BF16 with autocast (no scaler needed)
+                with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                    outputs = self.model(inputs)
+                    loss, loss_dict = self.criterion(outputs, targets)
+                    loss = loss / self.grad_accum_steps  # Scale per accumulation
+                
+                loss.backward()
+                
+            else:
+                # Standard FP32
+                outputs = self.model(inputs)
+                loss, loss_dict = self.criterion(outputs, targets)
+                loss = loss / self.grad_accum_steps  # Scale per accumulation
+                
+                loss.backward()
             
-            # Calcola loss
-            loss, loss_dict = self.criterion(outputs, targets)
-            
-            # Backward pass
-            loss.backward()
-            
-            # Gradient clipping per stabilità
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
-            
-            self.optimizer.step()
+            # 🔥 BEAST MODE: Gradient Accumulation
+            if (batch_idx + 1) % self.grad_accum_steps == 0:
+                # Gradient clipping per stabilità
+                if self.scaler is not None:
+                    # FP16: unscale before clipping
+                    self.scaler.unscale_(self.optimizer)
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
+                else:
+                    # BF16/FP32: normal clipping
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                    self.optimizer.step()
+                
+                self.optimizer.zero_grad()
             
             # Accumula metriche
             total_loss += loss.item()
@@ -549,8 +605,35 @@ def create_trainer(input_dir: str,
                   batch_size: int = 8,
                   image_size: Tuple[int, int] = (512, 512),
                   num_workers: int = 4,
-                  device: str = None) -> StarRemovalTrainer:
-    """Factory function per creare trainer"""
+                  device: str = None,
+                  # 🔥 BEAST MODE PARAMETERS
+                  mixed_precision: str = 'fp32',
+                  grad_accum: int = 1,
+                  prefetch_factor: int = 2,
+                  persistent_workers: bool = True,
+                  pin_memory: bool = False,
+                  learning_rate: float = 0.001,
+                  weight_decay: float = 1e-4,
+                  dropout: float = 0.1,
+                  augmentation_factor: int = 4,
+                  validation_split: float = 0.2,
+                  early_stopping_patience: int = 10,
+                  compile_model: bool = False) -> StarRemovalTrainer:
+    """Factory function per creare trainer con configurazione BEAST MODE"""
+    
+    print(f"🔥 BEAST MODE TRAINER CONFIGURATION:")
+    print(f"  Mixed Precision: {mixed_precision}")
+    print(f"  Gradient Accumulation: {grad_accum}")
+    print(f"  Learning Rate: {learning_rate}")
+    print(f"  Weight Decay: {weight_decay}")
+    print(f"  Dropout: {dropout}")
+    print(f"  Augmentation Factor: {augmentation_factor}")
+    print(f"  Validation Split: {validation_split}")
+    print(f"  Prefetch Factor: {prefetch_factor}")
+    print(f"  Persistent Workers: {persistent_workers}")
+    print(f"  Pin Memory: {pin_memory}")
+    print(f"  Model Compilation: {compile_model}")
+    print(f"  Early Stopping Patience: {early_stopping_patience}")
     
     if device is None:
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -587,9 +670,14 @@ def create_trainer(input_dir: str,
         torch.cuda.empty_cache()  # Pulisci cache
     
     # Crea modello E FORZA SU GPU IMMEDIATAMENTE
-    model = StarNetUNet(n_channels=3, n_classes=3, dropout_rate=0.1)
+    model = StarNetUNet(n_channels=3, n_classes=3, dropout_rate=dropout)
     
-    # Crea dataloaders
+    # 🔥 BEAST MODE: Model compilation se richiesto
+    if compile_model and hasattr(torch, 'compile'):
+        print(f"🚀 Compiling model with torch.compile...")
+        model = torch.compile(model)
+    
+    # Crea dataloaders con parametri BEAST MODE
     train_loader, val_loader = create_dataloaders(
         input_dir=input_dir,
         starless_dir=starless_dir,
@@ -597,17 +685,28 @@ def create_trainer(input_dir: str,
         image_size=image_size,
         num_workers=num_workers,
         use_tiles=True,  # Usa tiles per aumentare dataset
-        augmentation_factor=8  # Ridotto a 8x per velocità simile al locale
+        augmentation_factor=augmentation_factor,
+        validation_split=validation_split,
+        # 🔥 BEAST MODE DataLoader params
+        prefetch_factor=prefetch_factor,
+        persistent_workers=persistent_workers,
+        pin_memory=pin_memory
     )
     
-    # Crea trainer
+    # Crea trainer con parametri BEAST MODE
     trainer = StarRemovalTrainer(
         model=model,
         train_loader=train_loader,
         val_loader=val_loader,
         device=device,
         output_dir=output_dir,
-        experiment_name=experiment_name
+        experiment_name=experiment_name,
+        # 🔥 BEAST MODE training params
+        mixed_precision=mixed_precision,
+        grad_accum_steps=grad_accum,
+        learning_rate=learning_rate,
+        weight_decay=weight_decay,
+        early_stopping_patience=early_stopping_patience
     )
     
     return trainer

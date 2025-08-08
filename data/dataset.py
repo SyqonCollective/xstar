@@ -275,10 +275,23 @@ def create_dataloaders(input_dir: str,
                       image_size: Tuple[int, int] = (512, 512),
                       num_workers: int = 4,
                       use_tiles: bool = False,
-                      augmentation_factor: int = 8) -> Tuple[DataLoader, DataLoader]:
+                      augmentation_factor: int = 8,
+                      # 🔥 BEAST MODE PARAMETERS
+                      prefetch_factor: int = 2,
+                      persistent_workers: bool = True,
+                      pin_memory: bool = False) -> Tuple[DataLoader, DataLoader]:
     """
-    Crea DataLoader per training e validation
+    Crea DataLoader per training e validation con parametri BEAST MODE
     """
+    
+    print(f"🔥 BEAST MODE DataLoader Configuration:")
+    print(f"  - Batch Size: {batch_size}")
+    print(f"  - Workers: {num_workers}")
+    print(f"  - Prefetch Factor: {prefetch_factor}")
+    print(f"  - Persistent Workers: {persistent_workers}")
+    print(f"  - Pin Memory: {pin_memory}")
+    print(f"  - Validation Split: {validation_split}")
+    print(f"  - Augmentation Factor: {augmentation_factor}")
     
     # Dataset completo
     full_dataset = StarRemovalDataset(
@@ -313,47 +326,44 @@ def create_dataloaders(input_dir: str,
     val_indices = val_dataset.indices if hasattr(val_dataset, 'indices') else list(range(val_size))
     val_subset = torch.utils.data.Subset(val_dataset_clean, val_indices[:val_size//augmentation_factor])
     
-    # 🚨 H200 OPTIMIZED DATALOADERS - FIX 0% GPU USAGE
-    # Calcola num_workers ottimale per H200
-    optimal_workers = min(16, max(4, torch.get_num_threads() // 2))
-    if torch.cuda.is_available():
-        # H200 ha bandwidth altissima, serve più workers
-        optimal_workers = min(32, max(8, torch.get_num_threads()))
+    # � BEAST MODE: Usa parametri configurabili invece di ottimizzazioni hardcoded
+    effective_workers = num_workers
+    effective_prefetch = prefetch_factor
     
-    print(f"🔧 H200 DataLoader Optimization:")
-    print(f"  - Optimal workers: {optimal_workers} (requested: {num_workers})")
-    print(f"  - Using persistent workers: True")
-    print(f"  - Prefetch factor: 4 (H200 optimized)")
+    print(f"🔧 BEAST MODE DataLoader Optimization:")
+    print(f"  - Effective workers: {effective_workers}")
+    print(f"  - Persistent workers: {persistent_workers}")
+    print(f"  - Prefetch factor: {effective_prefetch}")
     
-    # Crea DataLoaders OTTIMIZZATI per H200
+    # Crea DataLoaders con parametri BEAST MODE
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=optimal_workers,  # 🔥 OTTIMIZZATO per H200
-        pin_memory=True,
+        num_workers=effective_workers,  # 🔥 BEAST MODE configurabile
+        pin_memory=pin_memory,
         drop_last=True,
-        persistent_workers=True,  # 🚨 CRITICO: Evita ricreazione workers
-        prefetch_factor=4,  # 🔥 H200 ha memoria/bandwidth alta
-        pin_memory_device="cuda" if torch.cuda.is_available() else ""  # Pin direttamente su GPU
+        persistent_workers=persistent_workers,  # � BEAST MODE configurabile
+        prefetch_factor=effective_prefetch,  # 🔥 BEAST MODE configurabile
+        pin_memory_device="cuda" if pin_memory and torch.cuda.is_available() else ""
     )
 
     val_loader = DataLoader(
         val_subset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=max(2, optimal_workers // 2),  # Meno workers per validation
-        pin_memory=True,
-        persistent_workers=True,  # 🚨 CRITICO: Evita ricreazione workers
-        prefetch_factor=2,
-        pin_memory_device="cuda" if torch.cuda.is_available() else ""  # Pin direttamente su GPU
+        num_workers=max(2, effective_workers // 2),  # Meno workers per validation
+        pin_memory=pin_memory,
+        persistent_workers=persistent_workers,  # � BEAST MODE configurabile
+        prefetch_factor=max(1, effective_prefetch // 2),
+        pin_memory_device="cuda" if pin_memory and torch.cuda.is_available() else ""
     )
     
     print(f"📊 DataLoaders creati:")
     print(f"  - Training samples: {len(train_dataset)}")
     print(f"  - Validation samples: {len(val_subset)}")
     print(f"  - Batch size: {batch_size}")
-    print(f"  - Workers: train={optimal_workers}, val={max(2, optimal_workers // 2)}")
+    print(f"  - Workers: train={effective_workers}, val={max(2, effective_workers // 2)}")
     
     return train_loader, val_loader
 
