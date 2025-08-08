@@ -322,9 +322,24 @@ def create_dataloaders(input_dir: str,
         augmentation_factor=1
     )
     
-    # Prendi subset per validation
-    val_indices = val_dataset.indices if hasattr(val_dataset, 'indices') else list(range(val_size))
-    val_subset = torch.utils.data.Subset(val_dataset_clean, val_indices[:val_size//augmentation_factor])
+    # 🔥 FIX CRITICO: Usa direttamente val_dataset invece di creare subset con indici incompatibili
+    # Se usi tiles, il dataset è già espanso, quindi prendi una frazione per validation
+    if use_tiles:
+        # Con tiles, prendi gli ultimi N samples per validazione (evita overlap)
+        val_start = len(val_dataset_clean) - val_size
+        val_indices = list(range(max(0, val_start), len(val_dataset_clean)))
+        val_subset = torch.utils.data.Subset(val_dataset_clean, val_indices)
+    else:
+        # Senza tiles, usa split normale
+        val_indices = val_dataset.indices if hasattr(val_dataset, 'indices') else list(range(val_size))
+        val_subset = torch.utils.data.Subset(val_dataset_clean, val_indices[:val_size])
+    
+    print(f"🔧 Dataset Split Info:")
+    print(f"  - Full dataset size (with tiles): {len(full_dataset)}")
+    print(f"  - Training samples: {len(train_dataset)}")
+    print(f"  - Validation dataset size: {len(val_dataset_clean)}")
+    print(f"  - Validation subset size: {len(val_subset)}")
+    print(f"  - Use tiles: {use_tiles}")
     
     # � BEAST MODE: Usa parametri configurabili invece di ottimizzazioni hardcoded
     effective_workers = num_workers
