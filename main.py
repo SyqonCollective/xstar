@@ -50,21 +50,52 @@ def train_model(input_dir: str,
                batch_size: int = 8,
                image_size: tuple = (512, 512),
                num_workers: int = 4,
-               experiment_name: str = "starnet_v1"):
-    """Addestra il modello"""
-    print(f"\n🚀 FASE 2: Training Modello")
+               experiment_name: str = "starnet_v1",
+               # 🔥 PARAMETRI BEAST MODE
+               mixed_precision: str = 'fp32',
+               grad_accum: int = 1,
+               prefetch_factor: int = 2,
+               no_persistent_workers: bool = False,
+               pin_memory: bool = False,
+               learning_rate: float = 0.001,
+               weight_decay: float = 1e-4,
+               dropout: float = 0.1,
+               augmentation_factor: int = 4,
+               validation_split: float = 0.2,
+               early_stopping_patience: int = 10,
+               save_every: int = 10,
+               compile_model: bool = False):
+    """Addestra il modello con configurazione ottimizzata"""
+    print(f"\n🚀 FASE 2: Training Modello BEAST MODE")
     print("=" * 50)
+    print(f"🔥 Mixed Precision: {mixed_precision}")
+    print(f"🔥 Gradient Accumulation: {grad_accum}")
+    print(f"🔥 Workers: {num_workers}, Prefetch: {prefetch_factor}")
+    print(f"🔥 Batch Size: {batch_size}")
     
-    # Crea trainer
+    # Crea trainer con tutti i parametri
     trainer = create_trainer(
         input_dir=input_dir,
         starless_dir=starless_dir,
         batch_size=batch_size,
         image_size=image_size,
         num_workers=num_workers,
-        experiment_name=experiment_name
+        experiment_name=experiment_name,
+        # Parametri ottimizzazione
+        mixed_precision=mixed_precision,
+        grad_accum=grad_accum,
+        prefetch_factor=prefetch_factor,
+        persistent_workers=not no_persistent_workers,
+        pin_memory=pin_memory,
+        learning_rate=learning_rate,
+        weight_decay=weight_decay,
+        dropout=dropout,
+        augmentation_factor=augmentation_factor,
+        validation_split=validation_split,
+        early_stopping_patience=early_stopping_patience,
+        compile_model=compile_model
     )    # Addestra
-    trainer.train(num_epochs=epochs, save_every=10)
+    trainer.train(num_epochs=epochs, save_every=save_every)
     
     # Restituisci path del miglior modello
     best_model_path = trainer.output_dir / "best_model.pth"
@@ -187,6 +218,34 @@ def main():
     parser.add_argument("--experiment-name", default="starnet_v1",
                        help="Nome esperimento")
     
+    # 🔥 PARAMETRI DI OTTIMIZZAZIONE BEAST MODE
+    parser.add_argument("--mixed-precision", choices=['fp16', 'bf16', 'fp32'], default='fp32',
+                       help="Tipo di mixed precision (fp16, bf16, fp32)")
+    parser.add_argument("--grad-accum", type=int, default=1,
+                       help="Steps di gradient accumulation")
+    parser.add_argument("--prefetch-factor", type=int, default=2,
+                       help="Prefetch factor per DataLoader")
+    parser.add_argument("--no-persistent-workers", action='store_true',
+                       help="Disabilita persistent workers")
+    parser.add_argument("--pin-memory", action='store_true',
+                       help="Abilita pin memory per DataLoader")
+    parser.add_argument("--learning-rate", type=float, default=0.001,
+                       help="Learning rate per training")
+    parser.add_argument("--weight-decay", type=float, default=1e-4,
+                       help="Weight decay per regularizzazione")
+    parser.add_argument("--dropout", type=float, default=0.1,
+                       help="Dropout rate per il modello")
+    parser.add_argument("--augmentation-factor", type=int, default=4,
+                       help="Fattore di augmentazione dati")
+    parser.add_argument("--validation-split", type=float, default=0.2,
+                       help="Frazione del dataset per validazione")
+    parser.add_argument("--early-stopping-patience", type=int, default=10,
+                       help="Patience per early stopping")
+    parser.add_argument("--save-every", type=int, default=10,
+                       help="Salva checkpoint ogni N epochs")
+    parser.add_argument("--compile-model", action='store_true',
+                       help="Abilita torch.compile per il modello")
+    
     # Parametri inferenza
     parser.add_argument("--model-path", 
                        help="Path del modello addestrato")
@@ -215,7 +274,21 @@ def main():
                 batch_size=args.batch_size,
                 image_size=tuple(args.image_size),
                 num_workers=args.num_workers,
-                experiment_name=args.experiment_name
+                experiment_name=args.experiment_name,
+                # 🔥 PARAMETRI BEAST MODE
+                mixed_precision=args.mixed_precision,
+                grad_accum=args.grad_accum,
+                prefetch_factor=args.prefetch_factor,
+                no_persistent_workers=args.no_persistent_workers,
+                pin_memory=args.pin_memory,
+                learning_rate=args.learning_rate,
+                weight_decay=args.weight_decay,
+                dropout=args.dropout,
+                augmentation_factor=args.augmentation_factor,
+                validation_split=args.validation_split,
+                early_stopping_patience=args.early_stopping_patience,
+                save_every=args.save_every,
+                compile_model=args.compile_model
             )
             print(f"\n🎯 Modello addestrato: {model_path}")
             
@@ -269,7 +342,22 @@ def main():
                 epochs=args.epochs,
                 batch_size=args.batch_size,
                 image_size=tuple(args.image_size),
-                experiment_name=args.experiment_name
+                num_workers=args.num_workers,
+                experiment_name=args.experiment_name,
+                # 🔥 PARAMETRI BEAST MODE per pipeline completa
+                mixed_precision=args.mixed_precision,
+                grad_accum=args.grad_accum,
+                prefetch_factor=args.prefetch_factor,
+                no_persistent_workers=args.no_persistent_workers,
+                pin_memory=args.pin_memory,
+                learning_rate=args.learning_rate,
+                weight_decay=args.weight_decay,
+                dropout=args.dropout,
+                augmentation_factor=args.augmentation_factor,
+                validation_split=args.validation_split,
+                early_stopping_patience=args.early_stopping_patience,
+                save_every=args.save_every,
+                compile_model=args.compile_model
             )
             
             # 4. Valutazione
