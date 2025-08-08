@@ -198,11 +198,27 @@ class StarNetLoss(nn.Module):
         return self.vgg(x)
     
     def forward(self, pred, target):
-        # L1 loss (preserva dettagli)
-        l1 = self.l1_loss(pred, target)
+        # 🔥 BEAST MODE: Mask per focalizzare sui pixel stellari
+        diff = torch.abs(pred - target)  # Differenza assoluta
         
-        # L2 loss (smoothness)
-        l2 = self.l2_loss(pred, target)
+        # Crea mask delle stelle (dove c'è più differenza tra input e target starless)
+        # Assumendo che target sia starless, le stelle sono dove input != target
+        input_vs_target = torch.abs(pred.detach() - target)  # Dove dovremmo rimuovere stelle
+        star_mask = (input_vs_target > 0.08).float()  # Threshold per identificare stelle
+        
+        # Dilata la mask per includere area attorno alle stelle
+        star_mask = torch.nn.functional.max_pool2d(star_mask, kernel_size=3, stride=1, padding=1)
+        
+        # Peso più alto per pixel stellari
+        weight_map = 1.0 + 4.0 * star_mask  # Stelle pesano 5x di più
+        
+        # L1 loss pesato (preserva dettagli dove conta)
+        l1_base = torch.abs(pred - target)
+        l1 = (weight_map * l1_base).mean()
+        
+        # L2 loss pesato (smoothness focalizzata)
+        l2_base = (pred - target) ** 2
+        l2 = (weight_map * l2_base).mean()
         
         # Loss percettuale (preserva strutture semantiche)
         perceptual = 0
@@ -222,6 +238,7 @@ class StarNetLoss(nn.Module):
             'l1': l1.item(),
             'l2': l2.item(), 
             'perceptual': perceptual.item() if isinstance(perceptual, torch.Tensor) else perceptual,
+            'star_fraction': star_mask.mean().item(),  # 🔥 Frazione di pixel stellari
             'total': total_loss.item()
         }
 

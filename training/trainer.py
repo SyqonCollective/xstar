@@ -297,7 +297,7 @@ class StarRemovalTrainer:
         """Training per una epoch con BEAST MODE optimizations"""
         self.model.train()
         total_loss = 0
-        loss_components = {'l1': 0, 'l2': 0, 'perceptual': 0}
+        loss_components = {'l1': 0, 'l2': 0, 'perceptual': 0, 'star_fraction': 0}
         
         pbar = tqdm(self.train_loader, desc=f'Epoch {self.current_epoch+1} [Train]')
         
@@ -415,21 +415,44 @@ class StarRemovalTrainer:
         return {'loss': avg_loss, **avg_components}
     
     def validate_epoch(self) -> Dict[str, float]:
-        """Validazione per una epoch"""
+        """Validazione per una epoch con logging dettagliato"""
         self.model.eval()
         total_loss = 0
-        loss_components = {'l1': 0, 'l2': 0, 'perceptual': 0}
+        loss_components = {'l1': 0, 'l2': 0, 'perceptual': 0, 'star_fraction': 0}
         
         with torch.no_grad():
             pbar = tqdm(self.val_loader, desc=f'Epoch {self.current_epoch+1} [Val]')
             
-            for batch in pbar:
-                inputs = batch['input'].to(self.device)
-                targets = batch['starless'].to(self.device)
+            for batch_idx, batch in enumerate(pbar):
+                inputs = batch['input'].to(self.device, non_blocking=True)
+                targets = batch['starless'].to(self.device, non_blocking=True)
                 
-                # Forward pass
-                outputs = self.model(inputs)
-                loss, loss_dict = self.criterion(outputs, targets)
+                # 🔥 BEAST MODE: Mixed Precision anche in validazione
+                if self.mixed_precision == 'fp16':
+                    with torch.cuda.amp.autocast(dtype=torch.float16):
+                        outputs = self.model(inputs)
+                        loss, loss_dict = self.criterion(outputs, targets)
+                elif self.mixed_precision == 'bf16':
+                    with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                        outputs = self.model(inputs)
+                        loss, loss_dict = self.criterion(outputs, targets)
+                else:
+                    # Standard FP32
+                    outputs = self.model(inputs)
+                    loss, loss_dict = self.criterion(outputs, targets)
+                
+                # 🔍 LOG DETTAGLIATO primo batch
+                if batch_idx == 0:
+                    print(f"🔍 VALIDATION Check:")
+                    print(f"  Input device: {inputs.device}")
+                    print(f"  Target device: {targets.device}")
+                    print(f"  Input shape: {inputs.shape}")
+                    print(f"  Target shape: {targets.shape}")
+                    print(f"  Mixed Precision: {self.mixed_precision}")
+                    print(f"  L1 loss: {loss_dict['l1']:.6f}")
+                    print(f"  L2 loss: {loss_dict['l2']:.6f}")
+                    print(f"  Perceptual loss: {loss_dict['perceptual']:.6f}")
+                    print(f"  Total loss: {loss.item():.6f}")
                 
                 # Accumula metriche
                 total_loss += loss.item()
@@ -438,7 +461,9 @@ class StarRemovalTrainer:
                 
                 pbar.set_postfix({
                     'val_loss': f"{loss.item():.4f}",
-                    'val_l1': f"{loss_dict['l1']:.4f}"
+                    'val_l1': f"{loss_dict['l1']:.4f}",
+                    'val_l2': f"{loss_dict['l2']:.4f}",
+                    'val_perc': f"{loss_dict['perceptual']:.4f}"
                 })
         
         # Calcola metriche medie

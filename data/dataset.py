@@ -312,13 +312,13 @@ def create_dataloaders(input_dir: str,
         full_dataset, [train_size, val_size]
     )
     
-    # Dataset validation senza augmentation
+    # 🚨 FIX CRITICO: Dataset validation CON TILES come training
     val_dataset_clean = StarRemovalDataset(
         input_dir=input_dir,
         starless_dir=starless_dir,
         image_size=image_size,
         augment=False,  # No augmentation per validation
-        use_tiles=False,
+        use_tiles=use_tiles,  # 🔥 STESSO TILING DEL TRAINING!
         augmentation_factor=1
     )
     
